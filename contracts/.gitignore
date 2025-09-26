@@ -69,3 +69,6 @@ temp/
 
 # Deployment files
 deployment.json
+tatkal60-deployment.json
+localhost-deployment.json
+localhost-test-results.json

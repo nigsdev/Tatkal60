@@ -1,6 +1,14 @@
 # Tatkal60 Smart Contracts
 
-This directory contains the smart contracts for the Tatkal60 project, built using Hardhat.
+Oracle-settled UP/DOWN micro-market on Hedera with optional cross-chain CCIP integration.
+
+## Overview
+
+Tatkal60 is a decentralized prediction market platform that allows users to bet on price movements of various assets (HBAR, ETH, BTC) using oracle-settled rounds. The platform features:
+
+- **EscrowGame**: Core betting contract that manages rounds, handles bets, and distributes payouts
+- **OracleAdapter**: Price feed adapter supporting multiple markets with mock data for MVP
+- **Cross-chain Integration**: Optional CCIP support for cross-chain credit system
 
 ## Prerequisites
 
@@ -40,17 +48,17 @@ npm test
 ```bash
 # Deploy to Hedera testnet
 npm run deploy
-
-# Deploy to local network (if needed)
-npm run deploy:local
 ```
 
 ## Project Structure
 
 - `contracts/` - Solidity smart contracts
-- `test/` - Test files
+  - `EscrowGame.sol` - Main betting contract
+  - `OracleAdapter.sol` - Price feed adapter
+  - `CCIPReceiver.sol` - Cross-chain message receiver
+- `test/` - Test files (to be added)
 - `scripts/` - Deployment scripts
-  - `deploy.js` - Main deployment script (works with Hedera testnet)
+  - `deploy-tatkal60.js` - Main deployment script for Tatkal60 contracts
   - `generate-wallet.js` - Wallet generation utility
 - `hardhat.config.js` - Hardhat configuration
 
@@ -58,8 +66,8 @@ npm run deploy:local
 
 - `npm run compile` - Compile smart contracts
 - `npm run test` - Run tests
-- `npm run deploy` - Deploy to Hedera testnet
-- `npm run deploy:local` - Deploy to local network
+- `npm run deploy` - Deploy Tatkal60 contracts to Hedera testnet
+- `npm run test-ccip` - Test CCIPReceiver functionality
 - `npm run generate-wallet` - Generate new EVM wallet for Hedera
 - `npm run node` - Start local Hardhat node
 - `npm run clean` - Clean build artifacts
@@ -101,5 +109,55 @@ WALLET_MNEMONIC="your_mnemonic_phrase_here"
 
 ## Smart Contracts
 
-### Lock.sol
-A simple time-locked contract that holds ETH until a specified unlock time.
+### EscrowGame.sol
+Main betting contract that manages:
+- Round creation and management
+- UP/DOWN betting functionality
+- Oracle-based price resolution
+- Winner payouts with platform fees
+- Cross-chain credit system integration
+
+### OracleAdapter.sol
+Price feed adapter that provides:
+- Standardized price data interface
+- Support for multiple markets (HBAR/USD, ETH/USD, BTC/USD)
+- Mock price data for MVP testing
+- Extensible design for real oracle integration
+
+### CCIPReceiver.sol
+Cross-chain message receiver that handles:
+- Incoming cross-chain messages from Sepolia
+- Credit message validation and processing
+- Replay attack prevention
+- Statistics tracking and monitoring
+- Emergency controls and recovery functions
+
+## Contract Features
+
+- **Oracle Settlement**: Uses price feeds to determine round outcomes
+- **UP/DOWN Betting**: Simple binary prediction on price movements
+- **Platform Fees**: Configurable fees on winning pools
+- **Reentrancy Protection**: Secure against reentrancy attacks
+- **Owner Controls**: Admin functions for oracle and fee management
+- **Cross-chain Ready**: Full CCIP integration with message validation
+- **Replay Protection**: Prevents duplicate message processing
+- **Statistics Tracking**: Comprehensive monitoring and analytics
+
+## Testing
+
+### Unit Tests
+Run comprehensive tests:
+```bash
+npm test
+```
+
+### CCIP Testing
+Test CCIP functionality after deployment:
+```bash
+npm run test-ccip
+```
+
+### Test Coverage
+- **EscrowGame**: Round creation, betting, resolution, claiming, admin functions
+- **OracleAdapter**: Price feed functionality, market support, data validation
+- **CCIPReceiver**: Cross-chain message handling, statistics, admin controls

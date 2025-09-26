@@ -7,8 +7,8 @@
   "scripts": {
     "test": "npx hardhat test",
     "compile": "npx hardhat compile",
-    "deploy": "node scripts/deploy.js",
-    "deploy:local": "npx hardhat run scripts/deploy.js --network localhost",
+    "deploy": "node scripts/deploy-tatkal60.js",
+    "test-ccip": "node scripts/test-ccip.js",
     "generate-wallet": "node scripts/generate-wallet.js",
     "node": "npx hardhat node",
     "clean": "npx hardhat clean"
@@ -17,12 +17,14 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@chainlink/contracts-ccip": "^1.6.1",
     "@hashgraph/hardhat-hethers": "^1.0.4",
     "@hashgraph/hethers": "^1.2.6",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^4.0.1",
     "@nomicfoundation/hardhat-network-helpers": "^1.1.0",
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "@openzeppelin/contracts": "^5.4.0",
     "chai": "^6.0.1",
     "dotenv": "^17.2.2",
     "ethers": "^6.15.0",

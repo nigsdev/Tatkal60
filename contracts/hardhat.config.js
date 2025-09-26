@@ -2,7 +2,7 @@ import "dotenv/config";
 
 /** @type import('hardhat/config').HardhatUserConfig */
 export default {
-  solidity: "0.8.19",
+  solidity: "0.8.20",
   networks: {
     hardhat: {
       type: "edr-simulated",
