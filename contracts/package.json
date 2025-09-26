@@ -1,0 +1,31 @@
+{
+  "name": "contracts",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx hardhat test",
+    "compile": "npx hardhat compile",
+    "deploy": "node scripts/deploy.js",
+    "deploy:local": "npx hardhat run scripts/deploy.js --network localhost",
+    "generate-wallet": "node scripts/generate-wallet.js",
+    "node": "npx hardhat node",
+    "clean": "npx hardhat clean"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@hashgraph/hardhat-hethers": "^1.0.4",
+    "@hashgraph/hethers": "^1.2.6",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
+    "@nomicfoundation/hardhat-ethers": "^4.0.1",
+    "@nomicfoundation/hardhat-network-helpers": "^1.1.0",
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "chai": "^6.0.1",
+    "dotenv": "^17.2.2",
+    "ethers": "^6.15.0",
+    "hardhat": "^3.0.6"
+  }
+}
