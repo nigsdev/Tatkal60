@@ -1,8 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Dark baseline */
+:root {
+  color-scheme: dark;
+  --color-primary-400: #2dd4bf;
+  --color-primary-300: #5eead4;
+  --color-primary-500: #14b8a6;
+}
+html,
+body,
+#root {
+  height: 100%;
+}
 
 @layer base {
   html {
@@ -10,20 +20,30 @@
   }
 
   body {
-    @apply bg-gray-50 text-gray-900;
+    background-color: #000; /* dark baseline */
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply text-black font-medium py-2 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black;
+    background-color: var(--color-primary-400);
+  }
+  .btn-primary:hover {
+    background-color: var(--color-primary-300);
+  }
+  .btn-primary:focus {
+    --tw-ring-color: var(--color-primary-500);
   }
 
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 border border-white/10;
   }
 
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
+    @apply bg-white/5 rounded-xl shadow-sm border border-white/10 p-6;
   }
 }
