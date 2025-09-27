@@ -54,15 +54,16 @@ npm run dev
 - `npm run lint` - Run ESLint
 - `npm run format` - Format code with Prettier
 - `npm run format:check` - Check code formatting
+- `npm run abi:copy` - Copy contract ABIs from Hardhat artifacts
 
 ## Project Structure
 
 ```
 src/
-├── components/          # React components
+├── abi/                # Contract ABIs (auto-copied from Hardhat)
+├── components/         # React components
 ├── constants/          # App constants and configuration
-├── hooks/              # Custom React hooks
-├── services/           # API and blockchain services
+├── lib/                # Core utilities (hedera, contracts, helpers)
 ├── store/              # Zustand stores
 ├── types/              # TypeScript type definitions
 ├── utils/              # Utility functions
@@ -72,31 +73,52 @@ src/
 
 ## Configuration
 
-### Contract Addresses
+### Environment Variables
 
-Update contract addresses in `src/constants/index.ts`:
-
-```typescript
-export const CONTRACT_ADDRESSES = {
-  ORACLE_ADAPTER: '0x...',
-  ESCROW_GAME: '0x...',
-  CCIP_RECEIVER: '0x...',
-} as const;
+1. Copy the environment template:
+```bash
+cp .env.example .env
 ```
 
-### Network Configuration
+2. Update the `.env` file with your contract addresses and network configuration:
 
-Configure network settings in `src/constants/index.ts`:
+```ini
+# Chain configuration
+VITE_CHAIN_ID=296
+VITE_CHAIN_NAME=Hedera Testnet
+VITE_RPC_URL=https://testnet.hashio.io/api
+VITE_BLOCK_EXPLORER_URL=https://hashscan.io/testnet
+VITE_CURRENCY_NAME=HBAR
+VITE_CURRENCY_SYMBOL=HBAR
+
+# Contract addresses
+VITE_ESCROW_GAME=0xYourEscrowGameAddress
+VITE_ORACLE_ADAPTER=0xYourOracleAdapterAddress
+VITE_CCIP_RECEIVER=0xYourCCIPReceiverAddress
+```
+
+### Contract System
+
+The app uses a factory-based contract system in `src/lib/contracts.ts`:
 
 ```typescript
-export const NETWORK_CONFIG = {
-  HEDERA_TESTNET: {
-    chainId: 296,
-    name: 'Hedera Testnet',
-    rpcUrl: 'https://testnet.hashio.io/api',
-    blockExplorer: 'https://hashscan.io/testnet',
-  },
-} as const;
+import { escrow, oracle, ccip } from '../lib/contracts';
+
+// Read contract data
+const eg = escrow();
+const roundInfo = await eg.read().getRound(0);
+
+// Write transactions
+const writeContract = await eg.write();
+const tx = await writeContract.betUp(0, { value: parseEther('0.5') });
+```
+
+### ABI Management
+
+Contract ABIs are automatically copied from Hardhat artifacts:
+
+```bash
+npm run abi:copy
 ```
 
 ## Development

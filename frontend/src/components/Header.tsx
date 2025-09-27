@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Wallet, Copy, LogOut } from 'lucide-react';
 import Button from './ui/Button';
-import { useWalletStore } from '../store'; // assumes you have address, balance, connect, disconnect
-import { shortAddress, formatHBAR } from '../lib/format';
+import { useWalletStore } from '../lib/hedera';
+import { shortAddress } from '../lib/format';
 import logo from '../assets/logo.png';
 
 type HeaderProps = { centerBrand?: boolean };
@@ -29,7 +29,7 @@ function BrandLogo() {
 }
 
 export default function Header({ centerBrand = false }: HeaderProps) {
-  const { isConnected, connect, disconnect, address, balance } = useWalletStore();
+  const { isConnected, connect, disconnect, address, balance, connecting } = useWalletStore();
 
   const handleCopy = async () => {
     try { if (address) await navigator.clipboard.writeText(address); } catch {}
@@ -56,7 +56,7 @@ export default function Header({ centerBrand = false }: HeaderProps) {
                 <div className="hidden sm:flex items-center gap-2 rounded-lg bg-white/10 border border-white/10 px-3 py-2">
                   <span className="inline-flex items-center gap-1 text-white text-sm">
                     <Wallet size={16} className="opacity-80" />
-                    {formatHBAR(balance || undefined)} HBAR
+                    {balance} HBAR
                   </span>
                   <span className="text-gray-400">•</span>
                   <span className="text-white text-sm font-medium">{shortAddress(address || undefined)}</span>
@@ -67,16 +67,22 @@ export default function Header({ centerBrand = false }: HeaderProps) {
                 {/* Mobile: condensed chip */}
                 <div className="sm:hidden inline-flex items-center gap-1 rounded-md bg-white/10 text-white text-xs px-2 py-1">
                   <Wallet size={14} />
-                  {formatHBAR(balance || undefined)} • {shortAddress(address || undefined)}
+                  {balance} • {shortAddress(address || undefined)}
                 </div>
-                <Button variant="primary" onClick={disconnect} className="hidden sm:inline-flex">
-                  <LogOut size={16} className="mr-2" /> Disconnect
+                <Button variant="ghost" onClick={disconnect} className="px-4 py-2">
+                  <LogOut size={16} className="mr-2" />
+                  Disconnect
                 </Button>
               </div>
             ) : (
-              <Button variant="primary" onClick={connect} className="px-6 py-3 text-base font-bold">
+              <Button 
+                variant="primary" 
+                onClick={connect} 
+                disabled={connecting}
+                className="px-6 py-3 text-base font-bold"
+              >
                 <Wallet size={20} className="mr-2" />
-                Connect Wallet
+                {connecting ? 'Connecting...' : 'Connect Wallet'}
               </Button>
             )}
           </div>
