@@ -12,49 +12,58 @@ const EscrowAbi = EscrowArtifact.abi;
 const OracleAbi = OracleArtifact.abi;
 const CcipAbi = CcipArtifact.abi;
 
+// Introspection: does the current Escrow ABI expose roundStatus(uint256)?
+export const HAS_ROUND_STATUS: boolean = Array.isArray(EscrowAbi)
+  ? EscrowAbi.some(
+      (f: any) => f?.type === 'function' && f?.name === 'roundStatus'
+    )
+  : false;
+
 const env = (k: string, d = '') => (import.meta as any)?.env?.[k] ?? d;
 
 const CHAIN_ID_NUM = Number(env('VITE_CHAIN_ID', '296')); // default Hedera testnet
 
-// Fallback addresses for Hedera testnet (chain ID 296)
-const FALLBACK_ADDRESSES = {
-  'VITE_ESCROW_GAME': '0x3D53EDA80D6552414330CB0876451e04f112661f',
-  'VITE_ORACLE_ADAPTER': '0x975776fD9b9E4FbC30e76324a25738dfbC61E292',
-  'VITE_CCIP_RECEIVER': '0xd66a95E968c1ED60373a4E11Af9048F1EA60C381',
-  'VITE_ESCROW_GAME_296': '0x3D53EDA80D6552414330CB0876451e04f112661f',
-  'VITE_ORACLE_ADAPTER_296': '0x975776fD9b9E4FbC30e76324a25738dfbC61E292',
-  'VITE_CCIP_RECEIVER_296': '0xd66a95E968c1ED60373a4E11Af9048F1EA60C381',
-};
+// Fallback addresses for Hedera testnet (chain ID 296) - Updated with latest deployment
+  const FALLBACK_ADDRESSES = {
+    VITE_ESCROW_GAME: '0xb62f0F041BDC50465201Cca3EdDDd073c5E7a70F',
+    VITE_ORACLE_ADAPTER: '0xE02Fd36d82017c719E341F317428B5920E0fAC77',
+    VITE_CCIP_RECEIVER: '0x22B6e83A32A920663fC6CEB3f44D45277F7b213D',
+    VITE_ESCROW_GAME_296: '0xb62f0F041BDC50465201Cca3EdDDd073c5E7a70F',
+    VITE_ORACLE_ADAPTER_296: '0xE02Fd36d82017c719E341F317428B5920E0fAC77',
+    VITE_CCIP_RECEIVER_296: '0x22B6e83A32A920663fC6CEB3f44D45277F7b213D',
+  };
 
 function resolveEnvAddress(key: string, chainId = CHAIN_ID_NUM): string {
   const chainKey = `${key}_${chainId}`;
   const chainVal = env(chainKey);
   const generic = env(key);
-  
+
   if (chainVal && chainVal.trim() !== '') {
     return chainVal as string;
   }
   if (generic && generic.trim() !== '') {
     return generic as string;
   }
-  
+
   // Try fallback addresses
-  const fallbackChain = FALLBACK_ADDRESSES[chainKey as keyof typeof FALLBACK_ADDRESSES];
-  const fallbackGeneric = FALLBACK_ADDRESSES[key as keyof typeof FALLBACK_ADDRESSES];
-  
+  const fallbackChain =
+    FALLBACK_ADDRESSES[chainKey as keyof typeof FALLBACK_ADDRESSES];
+  const fallbackGeneric =
+    FALLBACK_ADDRESSES[key as keyof typeof FALLBACK_ADDRESSES];
+
   if (fallbackChain) {
     return fallbackChain;
   }
   if (fallbackGeneric) {
     return fallbackGeneric;
   }
-  
+
   const errorMsg = `Missing address for ${key}. Set ${chainKey} or ${key} in .env. Current values: chainVal="${chainVal}", generic="${generic}"`;
   throw new Error(errorMsg);
 }
 
 function addrOrEnv(userAddr: string | undefined, envKey: string): string {
-  return (userAddr && userAddr !== '') ? userAddr : resolveEnvAddress(envKey);
+  return userAddr && userAddr !== '' ? userAddr : resolveEnvAddress(envKey);
 }
 
 /** Thin factory: returns on-demand read/write contract handles */
@@ -77,11 +86,31 @@ function factory(abi: any, defaultEnvKey: string) {
 }
 
 // Public helpers
-export const escrow  = factory(EscrowAbi,  'VITE_ESCROW_GAME');
-export const oracle  = factory(OracleAbi,  'VITE_ORACLE_ADAPTER');
-export const ccip    = factory(CcipAbi,    'VITE_CCIP_RECEIVER');
+export const escrow = factory(EscrowAbi, 'VITE_ESCROW_GAME');
+export const oracle = factory(OracleAbi, 'VITE_ORACLE_ADAPTER');
+export const ccip = factory(CcipAbi, 'VITE_CCIP_RECEIVER');
+
+export function resolvedAddresses(chainId: number = CHAIN_ID_NUM) {
+  return {
+    escrow: resolveEnvAddress('VITE_ESCROW_GAME', chainId),
+    oracle: resolveEnvAddress('VITE_ORACLE_ADAPTER', chainId),
+    ccip: resolveEnvAddress('VITE_CCIP_RECEIVER', chainId),
+    chainId,
+  } as const;
+}
 
 // Optional: convenience singletons (only if you prefer quick imports)
 // export const Escrow = escrow();
 // export const Oracle = oracle();
 // export const CCIP   = ccip();
+
+/** Read on-chain roundStatus if the ABI supports it (1..5). Throws if not available. */
+export async function readRoundStatus(
+  roundId: number | bigint
+): Promise<number> {
+  if (!HAS_ROUND_STATUS)
+    throw new Error('roundStatus not available in current ABI');
+  const c = escrow().read() as any;
+  const v = await c.roundStatus(roundId);
+  return typeof v === 'number' ? v : Number(v);
+}

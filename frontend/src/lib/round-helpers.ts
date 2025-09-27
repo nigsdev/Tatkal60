@@ -1,16 +1,12 @@
 // src/lib/round-helpers.ts
 // Helper functions for working with RoundVM data
 
-import { formatEther } from 'ethers';
+import { hbar } from './format';
 import type { RoundVM, RoundStatus } from './readModel';
 
-// Format HBAR amounts for display
+// Format HBAR amounts for display (legacy function, use hbar from format.ts)
 export function formatHBAR(wei: bigint): string {
-  const hbar = formatEther(wei);
-  const num = Number(hbar);
-  if (num === 0) return '0';
-  if (num >= 1) return num.toFixed(3);
-  return num.toPrecision(3);
+  return hbar(wei);
 }
 
 // Format timestamp for display

@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Clock, TrendingUp, TrendingDown, Minus, Wallet } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
+import RoundCard from './RoundCard';
 import { loadRounds, loadMyRounds, type RoundVM } from '../lib/readModel';
+import { hbar } from '../lib/format';
 import { 
-  formatHBAR, 
   formatTimestamp, 
   getTimeRemaining, 
   getStatusColor, 
@@ -117,6 +118,52 @@ export default function RoundsList() {
         </Card>
       )}
 
+      {/* Demo RoundCard */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-white mb-4">RoundCard Demo</h3>
+        <div className="grid gap-4">
+          {/* Demo with different statuses */}
+          <RoundCard 
+            r={{
+              id: 1,
+              status: 'Betting',
+              lockTs: Math.floor(Date.now()/1000) + 45,
+              resolveTs: Math.floor(Date.now()/1000) + 60,
+              poolUp: BigInt('1000000000000000000'), // 1 HBAR
+              poolDown: BigInt('2000000000000000000'), // 2 HBAR
+              userUp: BigInt('500000000000000000'), // 0.5 HBAR
+              userDown: BigInt('0'),
+              claimable: BigInt('0'),
+              canClaim: false,
+              resultSide: 0
+            }}
+            onChanged={() => {
+              console.log('Round changed - refreshing data...');
+              // In a real app, this would trigger a data refresh
+            }}
+          />
+          <RoundCard 
+            r={{
+              id: 2,
+              status: 'Resolved',
+              lockTs: Math.floor(Date.now()/1000) - 30,
+              resolveTs: Math.floor(Date.now()/1000) - 10,
+              poolUp: BigInt('5000000000000000000'), // 5 HBAR
+              poolDown: BigInt('3000000000000000000'), // 3 HBAR
+              userUp: BigInt('1000000000000000000'), // 1 HBAR
+              userDown: BigInt('0'),
+              claimable: BigInt('1500000000000000000'), // 1.5 HBAR
+              canClaim: true,
+              resultSide: 1
+            }}
+            onChanged={() => {
+              console.log('Round changed - refreshing data...');
+              // In a real app, this would trigger a data refresh
+            }}
+          />
+        </div>
+      </div>
+
       {/* Rounds list */}
       {rounds.length === 0 && !loading ? (
         <Card className="p-8 text-center">
@@ -147,7 +194,7 @@ export default function RoundsList() {
                   {getUserStakeIcon(round)}
                   {round.canClaim && (
                     <div className="text-sm text-yellow-400 font-medium">
-                      Claim: {formatHBAR(round.claimable)}
+                      Claim: {hbar(round.claimable)}
                     </div>
                   )}
                 </div>
@@ -166,13 +213,13 @@ export default function RoundsList() {
                 <div>
                   <div className="text-gray-400 mb-1">Total Pool</div>
                   <div className="text-white font-medium">
-                    {formatHBAR(round.poolUp + round.poolDown)} HBAR
+                    {hbar(round.poolUp + round.poolDown)} HBAR
                   </div>
                 </div>
                 <div>
                   <div className="text-gray-400 mb-1">Your Stake</div>
                   <div className="text-white font-medium">
-                    {formatHBAR(round.userUp + round.userDown)} HBAR
+                    {hbar(round.userUp + round.userDown)} HBAR
                   </div>
                 </div>
               </div>
@@ -184,14 +231,14 @@ export default function RoundsList() {
                     <TrendingUp size={14} className="text-green-400" />
                     <span className="text-gray-400">UP Pool</span>
                   </div>
-                  <span className="text-white">{formatHBAR(round.poolUp)} HBAR</span>
+                  <span className="text-white">{hbar(round.poolUp)} HBAR</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <TrendingDown size={14} className="text-red-400" />
                     <span className="text-gray-400">DOWN Pool</span>
                   </div>
-                  <span className="text-white">{formatHBAR(round.poolDown)} HBAR</span>
+                  <span className="text-white">{hbar(round.poolDown)} HBAR</span>
                 </div>
               </div>
 
@@ -203,14 +250,14 @@ export default function RoundsList() {
                       <TrendingUp size={14} className="text-green-400" />
                       <span className="text-gray-400">Your UP</span>
                     </div>
-                    <span className="text-white">{formatHBAR(round.userUp)} HBAR</span>
+                    <span className="text-white">{hbar(round.userUp)} HBAR</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
                       <TrendingDown size={14} className="text-red-400" />
                       <span className="text-gray-400">Your DOWN</span>
                     </div>
-                    <span className="text-white">{formatHBAR(round.userDown)} HBAR</span>
+                    <span className="text-white">{hbar(round.userDown)} HBAR</span>
                   </div>
                 </div>
               )}
@@ -219,7 +266,7 @@ export default function RoundsList() {
               {round.canClaim && (
                 <div className="mt-4 p-3 bg-yellow-400/10 border border-yellow-400/20 rounded-lg">
                   <div className="text-yellow-400 text-sm font-medium">
-                    🎉 You can claim {formatHBAR(round.claimable)} HBAR
+                    🎉 You can claim {hbar(round.claimable)} HBAR
                   </div>
                   {round.reason && (
                     <div className="text-yellow-300 text-xs mt-1">{round.reason}</div>

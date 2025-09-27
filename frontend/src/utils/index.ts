@@ -1,16 +1,13 @@
 import { formatUnits, parseUnits } from 'ethers';
 import { format, formatDistanceToNow } from 'date-fns';
+import { hbar } from '../lib/format';
 
-// Format HBAR amounts
+// Format HBAR amounts (legacy function, use hbar from format.ts)
 export const formatHBAR = (
   amount: bigint | string,
-  decimals: number = 18
+  _decimals: number = 18
 ): string => {
-  try {
-    return formatUnits(amount, decimals);
-  } catch {
-    return '0';
-  }
+  return hbar(amount);
 };
 
 // Parse HBAR amounts

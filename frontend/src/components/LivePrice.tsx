@@ -35,21 +35,22 @@ export default function LivePrice() {
 
   return (
     <Card className="p-5">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
           <div className="text-white text-lg font-semibold">Live BTC/USD Price</div>
           <div className="text-xs text-gray-400">Freshness threshold: {maxAge}s • Powered by Pyth</div>
         </div>
         <Button 
           onClick={refresh}
-          className="px-4 py-2 font-semibold hover:shadow-lg hover:shadow-cyan-500/25 transition-all duration-200"
+          variant="primary"
+          className="px-4 py-2 font-semibold hover:shadow-lg hover:shadow-cyan-500/25 transition-all duration-200 flex-shrink-0"
         >
           Refresh
         </Button>
       </div>
-      {warn && <div className="mt-3 text-sm rounded-md bg-yellow-500/15 text-yellow-300 px-3 py-2">Warning: {warn}</div>}
-      <div className="mt-4 text-4xl font-extrabold text-white">${value}</div>
-      <div className="mt-2 text-xs text-gray-400">Source: <span className={source === 'onchain' ? 'text-emerald-300' : 'text-cyan-300'}>{source}</span> • Last update: {ts}</div>
+      {warn && <div className="mb-4 text-sm rounded-md bg-yellow-500/15 text-yellow-300 px-3 py-2">Warning: {warn}</div>}
+      <div className="text-4xl font-extrabold text-white mb-2">${value}</div>
+      <div className="text-xs text-gray-400">Source: <span className={source === 'onchain' ? 'text-emerald-300' : 'text-cyan-300'}>{source}</span> • Last update: {ts}</div>
     </Card>
   );
 }

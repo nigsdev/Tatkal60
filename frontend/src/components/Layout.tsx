@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Header from './Header';
 import Footer from './Footer';
+import ToastHost from './ToastHost';
 import banner from '../assets/banner.png';
 
 interface LayoutProps {
@@ -11,6 +12,11 @@ interface LayoutProps {
   heroTitle?: string;
   /** Optional hero subtitle (only used when showHero = true) */
   heroSubtitle?: string;
+  /** Header props for navigation */
+  headerProps?: {
+    currentPage?: 'dashboard' | 'admin' | 'about';
+    onPageChange?: (page: 'dashboard' | 'admin' | 'about') => void;
+  };
 }
 
 export default function Layout({
@@ -18,6 +24,7 @@ export default function Layout({
   showHero = true,
   heroTitle = '60‑Second Price Pulse',
   heroSubtitle = 'Oracle‑settled rounds on Hedera using Pyth BTC/USD',
+  headerProps,
 }: LayoutProps) {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
@@ -29,7 +36,7 @@ export default function Layout({
         Skip to content
       </a>
 
-      <Header />
+      <Header {...headerProps} />
 
       {showHero && (
         <section aria-label="Hero" className="border-b border-white/10">
@@ -59,51 +66,13 @@ export default function Layout({
 
       <main id="main" role="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          {/* About / Hero section */}
-          <div className="grid gap-6 lg:grid-cols-3 mb-6">
-            <div className="lg:col-span-2">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                <h2 className="text-white text-xl font-bold mb-2">What is Tatkal60?</h2>
-                <p className="text-gray-300">
-                  A 60-second micro-market on BTC/USD. Bet UP or DOWN. At T=60s, an on-chain Pyth price decides the outcome — claim instantly on Hedera.
-                </p>
-              </div>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-              <h3 className="text-white text-lg font-semibold mb-2">How it works</h3>
-              <ol className="list-decimal list-inside text-gray-300 space-y-1">
-                <li>Create or join a 60s round</li>
-                <li>Place UP/DOWN bet while betting is open</li>
-                <li>Refresh Pyth & Resolve at T=60s</li>
-                <li>Winners claim (losing pool − fee distributed)</li>
-              </ol>
-            </div>
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-3 mb-6">
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-              <h4 className="text-white font-semibold mb-2">Tech</h4>
-              <ul className="text-gray-300 text-sm space-y-1">
-                <li>Hedera EVM + HTS</li>
-                <li>Pyth BTC/USD price feed</li>
-                <li>Chainlink CCIP (Sepolia → Hedera) — coming</li>
-              </ul>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-              <h4 className="text-white font-semibold mb-2">Wallets</h4>
-              <p className="text-gray-300 text-sm">MetaMask (MVP). HashPack / Kabila / Snap — planned.</p>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-              <h4 className="text-white font-semibold mb-2">Fairness</h4>
-              <p className="text-gray-300 text-sm">We fetch a fresh Pyth update before resolve and require recency on reads to prevent stale data.</p>
-            </div>
-          </div>
-
           {children}
         </div>
       </main>
 
       <Footer />
+      
+      <ToastHost />
     </div>
   );
 }

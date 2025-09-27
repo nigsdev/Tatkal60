@@ -133,7 +133,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
     // Balance
     const balWei = await provider.getBalance(address);
-    const balance = formatEther(balWei); // HBAR has 18 decimals (EVM)
+    // Hedera EVM returns balance in wei format (1 HBAR = 10^18 wei)
+    // This is different from native Hedera tinybars (1 HBAR = 10^8 tinybars)
+    const balance = (Number(balWei) / 1000000000000000000).toFixed(6);
 
     // Register listeners (once)
     const eth = window.ethereum as any;
@@ -167,7 +169,10 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     if (!address) return;
     const p = getProvider();
     const balWei = await p.getBalance(address);
-    set({ balance: formatEther(balWei) });
+    // Hedera EVM returns balance in wei format (1 HBAR = 10^18 wei)
+    // This is different from native Hedera tinybars (1 HBAR = 10^8 tinybars)
+    const balance = (Number(balWei) / 1000000000000000000).toFixed(6);
+    set({ balance });
   },
 }));
 

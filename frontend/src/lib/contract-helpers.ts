@@ -1,7 +1,7 @@
 // src/lib/contract-helpers.ts
 // Helper functions for contract interactions using the factory system
 
-import { parseEther } from 'ethers';
+import { parseHBAR } from './tx';
 import { escrow, oracle, ccip } from './contracts';
 import { getProvider } from './hedera';
 
@@ -38,8 +38,8 @@ export async function placeBet(roundId: number, betType: 'up' | 'down', amount: 
     const eg = escrow();
     const contract = await eg.write();
     
-    // Parse the amount to wei
-    const amountWei = parseEther(amount);
+    // Parse the amount to wei (Hedera EVM uses wei format for transactions)
+    const amountWei = parseHBAR(amount);
     
     console.log(`Placing ${betType} bet for round ${roundId} with ${amount} HBAR`);
     console.log('Write contract instance:', contract);
@@ -47,9 +47,9 @@ export async function placeBet(roundId: number, betType: 'up' | 'down', amount: 
     // Execute the transaction
     let tx;
     if (betType === 'up') {
-      // tx = await contract.betUp(roundId, { value: amountWei });
+      // tx = await contract.betUp(roundId, { value: amountTinybars });
     } else {
-      // tx = await contract.betDown(roundId, { value: amountWei });
+      // tx = await contract.betDown(roundId, { value: amountTinybars });
     }
     
     console.log('Transaction:', tx);

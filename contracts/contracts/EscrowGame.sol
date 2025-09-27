@@ -86,8 +86,8 @@ contract EscrowGame is ReentrancyGuard, Ownable {
     uint256 public constant MAX_PRICE_AGE = 180; // 3 minutes
 
     // Fixed-duration round parameters
-    uint64 public constant ROUND_SECONDS = 60; // total round length
-    uint64 public constant LOCK_SECONDS  = 50; // betting closes 10s before resolve
+    uint64 public constant ROUND_SECONDS     = 60; // total round length
+    uint64 public constant LOCK_GAP_SECONDS  = 10; // lock occurs this many seconds before resolve
 
     // Modifiers
     modifier onlyOracle() {
@@ -137,9 +137,15 @@ contract EscrowGame is ReentrancyGuard, Ownable {
         uint64 lockTs,
         uint64 resolveTs
     ) public onlyOwner {
+        require(market != bytes32(0), "Invalid market");
+        require(startTs >= uint64(block.timestamp), "Start must be now/future");
         require(lockTs > startTs, "Lock time must be after start");
         require(resolveTs > lockTs, "Resolve time must be after lock");
         require(resolveTs > block.timestamp, "Resolve time must be in future");
+
+        // Tatkal60 invariants: 60s round, lock exactly 10s before resolve
+        require(resolveTs == startTs + ROUND_SECONDS, "must be start+60");
+        require(lockTs    == resolveTs - LOCK_GAP_SECONDS, "lock must be resolve-10");
 
         uint256 roundId = nextRoundId++;
         
@@ -169,8 +175,8 @@ contract EscrowGame is ReentrancyGuard, Ownable {
      */
     function createRound60(bytes32 market, uint64 startTs) external onlyOwner {
         require(startTs >= uint64(block.timestamp), "Start must be now/future");
-        uint64 lockTs = startTs + LOCK_SECONDS;
         uint64 resolveTs = startTs + ROUND_SECONDS;
+        uint64 lockTs    = resolveTs - LOCK_GAP_SECONDS; // 10s before end => 50s betting
         createRound(market, startTs, lockTs, resolveTs);
     }
 
@@ -179,9 +185,9 @@ contract EscrowGame is ReentrancyGuard, Ownable {
      * @param market Market identifier
      */
     function createRoundNow60(bytes32 market) external onlyOwner {
-        uint64 startTs = uint64(block.timestamp);
-        uint64 lockTs = startTs + LOCK_SECONDS;
+        uint64 startTs   = uint64(block.timestamp);
         uint64 resolveTs = startTs + ROUND_SECONDS;
+        uint64 lockTs    = resolveTs - LOCK_GAP_SECONDS; // 10s before end => 50s betting
         createRound(market, startTs, lockTs, resolveTs);
     }
 
@@ -256,7 +262,16 @@ contract EscrowGame is ReentrancyGuard, Ownable {
     {
         Round storage round = rounds[roundId];
         require(block.timestamp >= round.resolveTs, "Resolve time not reached");
-        require(round.refPrice > 0, "Ref price not set");
+
+        // If no reference price was ever captured, it means no bet happened after start.
+        // Allow round to resolve as FLAT without touching the oracle so old empty rounds don't get stuck.
+        if (round.refPrice == 0) {
+            round.outcome = 3; // FLAT
+            round.settlePrice = 0;
+            round.resolved = true;
+            emit RoundResolved(roundId, 3, 0);
+            return;
+        }
 
         // Get settlement price from oracle
         (int64 settlePrice, ) = IOracleAdapter(oracle).getPriceWithFreshness(round.market, MAX_PRICE_AGE);
@@ -413,6 +428,18 @@ contract EscrowGame is ReentrancyGuard, Ownable {
 
     function getContractBalance() external view returns (uint256) {
         return address(this).balance;
+    }
+
+    /**
+     * @dev On-chain status helper for front-end (1=Upcoming, 2=Betting, 3=Locked, 4=Resolving, 5=Resolved)
+     */
+    function roundStatus(uint256 roundId) external view validRound(roundId) returns (uint8) {
+        Round storage r = rounds[roundId];
+        if (r.resolved) return 5; // Resolved
+        if (block.timestamp < r.startTs) return 1; // Upcoming
+        if (block.timestamp < r.lockTs) return 2; // Betting
+        if (block.timestamp < r.resolveTs) return 3; // Locked
+        return 4; // Resolving
     }
 
     receive() external payable {}
