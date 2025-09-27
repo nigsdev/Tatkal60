@@ -2,15 +2,15 @@ import "dotenv/config";
 
 /** @type import('hardhat/config').HardhatUserConfig */
 export default {
-  solidity: "0.8.20",
+  solidity: "0.8.24",
   networks: {
     hardhat: {
       type: "edr-simulated",
-      chainId: 1337
+      chainId: 1337,
     },
     localhost: {
       type: "http",
-      url: "http://127.0.0.1:8545"
+      url: "http://127.0.0.1:8545",
     },
     hedera_testnet: {
       type: "http",
@@ -21,8 +21,8 @@ export default {
       gasPrice: 100000000,
       timeout: 60000,
       httpHeaders: {
-        "Content-Type": "application/json"
-      }
+        "Content-Type": "application/json",
+      },
     },
     hedera_mainnet: {
       type: "http",
@@ -33,14 +33,14 @@ export default {
       gasPrice: 100000000,
       timeout: 60000,
       httpHeaders: {
-        "Content-Type": "application/json"
-      }
-    }
+        "Content-Type": "application/json",
+      },
+    },
   },
   paths: {
     sources: "./contracts",
     tests: "./test",
     cache: "./cache",
-    artifacts: "./artifacts"
-  }
+    artifacts: "./artifacts",
+  },
 };

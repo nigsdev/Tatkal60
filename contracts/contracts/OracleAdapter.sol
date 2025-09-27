@@ -1,14 +1,32 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 /**
  * @title OracleAdapter
  * @dev Adapter contract for price feeds (Pyth, Chainlink, or mock)
  * @notice Provides standardized price data interface
  */
+
+/**
+ * @title IOracleAdapter
+ * @dev Minimal interface so other contracts can depend on an abstraction.
+ */
+interface IOracleAdapter {
+    function getPrice(bytes32 market)
+        external
+        view
+        returns (int64 price, uint8 decimals, uint256 lastUpdate);
+
+    function getPriceWithFreshness(bytes32 market, uint256 maxAge)
+        external
+        view
+        returns (int64 price, uint8 decimals);
+}
+
 contract OracleAdapter {
     // Events
     event PriceUpdated(bytes32 indexed market, int64 price, uint8 decimals, uint256 timestamp);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     // Storage
     mapping(bytes32 => PriceData) public prices;
@@ -60,6 +78,22 @@ contract OracleAdapter {
     }
 
     /**
+     * @dev Get price and decimals only if the value is fresh enough
+     * @param market Market identifier
+     * @param maxAge Maximum allowed staleness in seconds
+     */
+    function getPriceWithFreshness(bytes32 market, uint256 maxAge)
+        external
+        view
+        returns (int64 price, uint8 decimals)
+    {
+        PriceData memory data = prices[market];
+        require(data.isValid, "Price not available");
+        require(block.timestamp - data.lastUpdate <= maxAge, "Stale price");
+        return (data.price, data.decimals);
+    }
+
+    /**
      * @dev Update price (for mock/testing)
      * @param market Market identifier
      * @param price New price
@@ -71,6 +105,21 @@ contract OracleAdapter {
         uint8 decimals
     ) external onlyOwner {
         _setPrice(market, price, decimals);
+    }
+
+    /**
+     * @dev Batch update multiple markets in one tx (owner-only). Arrays must be same length.
+     */
+    function updatePricesBatch(
+        bytes32[] calldata markets,
+        int64[] calldata priceList,
+        uint8[] calldata decimalsList
+    ) external onlyOwner {
+        uint256 len = markets.length;
+        require(priceList.length == len && decimalsList.length == len, "Array length mismatch");
+        for (uint256 i = 0; i < len; i++) {
+            _setPrice(markets[i], priceList[i], decimalsList[i]);
+        }
     }
 
     /**
@@ -123,30 +172,33 @@ contract OracleAdapter {
      * @return priceFormatted Price as string
      * @return decimals Number of decimals
      */
-    function getPriceFormatted(bytes32 market) 
-        external 
-        view 
-        returns (string memory priceFormatted, uint8 decimals) 
+    function getPriceFormatted(bytes32 market)
+        external
+        view
+        returns (string memory priceFormatted, uint8 decimals)
     {
         PriceData memory data = prices[market];
         require(data.isValid, "Price not available");
-        
-        // Convert to string (simplified for MVP)
-        if (data.decimals == 8) {
-            uint256 priceInt = uint256(int256(data.price));
-            uint256 wholePart = priceInt / 1e8;
-            uint256 decimalPart = priceInt % 1e8;
-            
-            priceFormatted = string(abi.encodePacked(
-                _uint2str(wholePart),
-                ".",
-                _uint2str(decimalPart)
-            ));
+
+        uint8 decs = data.decimals;
+        uint256 scale = decs == 0 ? 1 : 10 ** uint256(decs);
+        uint256 priceInt = uint256(int256(data.price));
+
+        if (decs == 0) {
+            priceFormatted = _uint2str(priceInt);
         } else {
-            priceFormatted = _uint2str(uint256(int256(data.price)));
+            uint256 wholePart = priceInt / scale;
+            uint256 decimalPart = priceInt % scale;
+            priceFormatted = string(
+                abi.encodePacked(
+                    _uint2str(wholePart),
+                    ".",
+                    _leftPadZeros(_uint2str(decimalPart), decs)
+                )
+            );
         }
-        
-        return (priceFormatted, data.decimals);
+
+        return (priceFormatted, decs);
     }
 
     /**
@@ -180,11 +232,33 @@ contract OracleAdapter {
     }
 
     /**
+     * @dev Left-pad a numeric string with zeros up to a fixed width
+     * @param s Numeric string without sign
+     * @param width Desired total length (e.g., decimals)
+     */
+    function _leftPadZeros(string memory s, uint8 width) internal pure returns (string memory) {
+        bytes memory b = bytes(s);
+        if (b.length >= width) return s;
+
+        bytes memory out = new bytes(width);
+        uint256 pad = width - b.length;
+        for (uint256 i = 0; i < pad; i++) {
+            out[i] = "0";
+        }
+        for (uint256 j = 0; j < b.length; j++) {
+            out[pad + j] = b[j];
+        }
+        return string(out);
+    }
+
+    /**
      * @dev Transfer ownership
      * @param newOwner New owner address
      */
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "Invalid new owner");
+        address previousOwner = owner;
         owner = newOwner;
+        emit OwnershipTransferred(previousOwner, newOwner);
     }
 }

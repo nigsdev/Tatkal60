@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./OracleAdapter.sol";
+import { IOracleAdapter } from "./OracleAdapter.sol";
 
 /**
  * @title EscrowGame
@@ -63,6 +63,7 @@ contract EscrowGame is ReentrancyGuard, Ownable {
         uint256 upPool;
         uint256 downPool;
         bool resolved;
+        bool feePaid;   // charged once in resolve()
         uint8 outcome; // 1 = UP, 2 = DOWN, 3 = FLAT
     }
 
@@ -81,9 +82,21 @@ contract EscrowGame is ReentrancyGuard, Ownable {
     uint256 public constant MAX_BET = 1000 ether; // Cap to avoid overflow/UX surprises
     uint256 public constant BASIS_POINTS = 10000;
 
+    // Oracle staleness tolerance (seconds)
+    uint256 public constant MAX_PRICE_AGE = 180; // 3 minutes
+
+    // Fixed-duration round parameters
+    uint64 public constant ROUND_SECONDS = 60; // total round length
+    uint64 public constant LOCK_SECONDS  = 50; // betting closes 10s before resolve
+
     // Modifiers
     modifier onlyOracle() {
         require(msg.sender == oracle, "Only oracle can call this");
+        _;
+    }
+
+    modifier onlyCCIPReceiver() {
+        require(msg.sender == ccipReceiver, "Only CCIP receiver");
         _;
     }
 
@@ -123,32 +136,53 @@ contract EscrowGame is ReentrancyGuard, Ownable {
         uint64 startTs,
         uint64 lockTs,
         uint64 resolveTs
-    ) external onlyOwner {
+    ) public onlyOwner {
         require(lockTs > startTs, "Lock time must be after start");
         require(resolveTs > lockTs, "Resolve time must be after lock");
         require(resolveTs > block.timestamp, "Resolve time must be in future");
 
         uint256 roundId = nextRoundId++;
         
-        // Get reference price from oracle
-        (int64 refPrice, , ) = OracleAdapter(oracle).getPrice(market);
-        require(refPrice > 0, "Invalid reference price");
-
+        // Lazy-lock reference price on first bet after startTs
         rounds[roundId] = Round({
             id: roundId,
             market: market,
             startTs: startTs,
             lockTs: lockTs,
             resolveTs: resolveTs,
-            refPrice: refPrice,
+            refPrice: 0,
             settlePrice: 0,
             upPool: 0,
             downPool: 0,
             resolved: false,
+            feePaid: false,
             outcome: 0
         });
 
-        emit RoundCreated(roundId, market, startTs, lockTs, resolveTs, refPrice);
+        emit RoundCreated(roundId, market, startTs, lockTs, resolveTs, 0);
+    }
+
+    /**
+     * @dev Convenience: create a fixed 60s round with a future start time
+     * @param market Market identifier
+     * @param startTs Start timestamp (must be >= now)
+     */
+    function createRound60(bytes32 market, uint64 startTs) external onlyOwner {
+        require(startTs >= uint64(block.timestamp), "Start must be now/future");
+        uint64 lockTs = startTs + LOCK_SECONDS;
+        uint64 resolveTs = startTs + ROUND_SECONDS;
+        createRound(market, startTs, lockTs, resolveTs);
+    }
+
+    /**
+     * @dev Convenience: create a fixed 60s round starting immediately
+     * @param market Market identifier
+     */
+    function createRoundNow60(bytes32 market) external onlyOwner {
+        uint64 startTs = uint64(block.timestamp);
+        uint64 lockTs = startTs + LOCK_SECONDS;
+        uint64 resolveTs = startTs + ROUND_SECONDS;
+        createRound(market, startTs, lockTs, resolveTs);
     }
 
     /**
@@ -167,6 +201,13 @@ contract EscrowGame is ReentrancyGuard, Ownable {
         require(block.timestamp < round.lockTs, "Betting period ended");
         require(msg.value > 0, "Bet amount must be positive");
         require(msg.value <= MAX_BET, "Bet amount too high");
+
+        // Lazy-lock ref price at first bet after startTs
+        if (round.refPrice == 0 && block.timestamp >= round.startTs) {
+            (int64 _ref, ) = IOracleAdapter(oracle).getPriceWithFreshness(round.market, MAX_PRICE_AGE);
+            require(_ref > 0, "Invalid reference price");
+            round.refPrice = _ref;
+        }
 
         upStakes[roundId][msg.sender] += msg.value;
         round.upPool += msg.value;
@@ -191,6 +232,13 @@ contract EscrowGame is ReentrancyGuard, Ownable {
         require(msg.value > 0, "Bet amount must be positive");
         require(msg.value <= MAX_BET, "Bet amount too high");
 
+        // Lazy-lock ref price at first bet after startTs
+        if (round.refPrice == 0 && block.timestamp >= round.startTs) {
+            (int64 _ref, ) = IOracleAdapter(oracle).getPriceWithFreshness(round.market, MAX_PRICE_AGE);
+            require(_ref > 0, "Invalid reference price");
+            round.refPrice = _ref;
+        }
+
         downStakes[roundId][msg.sender] += msg.value;
         round.downPool += msg.value;
 
@@ -208,13 +256,13 @@ contract EscrowGame is ReentrancyGuard, Ownable {
     {
         Round storage round = rounds[roundId];
         require(block.timestamp >= round.resolveTs, "Resolve time not reached");
+        require(round.refPrice > 0, "Ref price not set");
 
         // Get settlement price from oracle
-        (int64 settlePrice, , ) = OracleAdapter(oracle).getPrice(round.market);
+        (int64 settlePrice, ) = IOracleAdapter(oracle).getPriceWithFreshness(round.market, MAX_PRICE_AGE);
         require(settlePrice > 0, "Invalid settlement price");
 
         round.settlePrice = settlePrice;
-        round.resolved = true;
 
         // Determine outcome
         if (settlePrice > round.refPrice) {
@@ -225,6 +273,24 @@ contract EscrowGame is ReentrancyGuard, Ownable {
             round.outcome = 3; // FLAT
         }
 
+        // If no one bet on the winning side, void the round
+        if ((round.outcome == 1 && round.upPool == 0) || (round.outcome == 2 && round.downPool == 0)) {
+            round.outcome = 3; // FLAT
+        }
+
+        // Charge fee once (non-FLAT only)
+        if (round.outcome == 1 || round.outcome == 2) {
+            uint256 totalPool = round.upPool + round.downPool;
+            uint256 feeAmount = (totalPool * feeBps) / BASIS_POINTS;
+            if (feeAmount > 0) {
+                (bool ok, ) = payable(feeSink).call{value: feeAmount}("");
+                require(ok, "Fee transfer failed");
+                round.feePaid = true;
+                emit FeeTaken(roundId, feeAmount);
+            }
+        }
+
+        round.resolved = true;
         emit RoundResolved(roundId, round.outcome, settlePrice);
     }
 
@@ -243,7 +309,6 @@ contract EscrowGame is ReentrancyGuard, Ownable {
         uint256 userUpStake = upStakes[roundId][msg.sender];
         uint256 userDownStake = downStakes[roundId][msg.sender];
         uint256 totalUserStake = userUpStake + userDownStake;
-        
         require(totalUserStake > 0, "No stake to claim");
 
         uint256 payout = 0;
@@ -252,41 +317,26 @@ contract EscrowGame is ReentrancyGuard, Ownable {
             // FLAT - refund all stakes
             payout = totalUserStake;
         } else {
-            // Calculate winnings
-            uint256 userWinningStake = 0;
-            uint256 winningPool = 0;
+            uint256 totalWinningStake = (round.outcome == 1) ? round.upPool : round.downPool;
+            uint256 totalLosingStake  = (round.outcome == 1) ? round.downPool : round.upPool;
+            require(totalWinningStake > 0, "No winners");
 
-            if (round.outcome == 1) { // UP
-                userWinningStake = userUpStake;
-                winningPool = round.upPool;
-            } else if (round.outcome == 2) { // DOWN
-                userWinningStake = userDownStake;
-                winningPool = round.downPool;
-            }
+            uint256 totalPool     = totalWinningStake + totalLosingStake;
+            uint256 feeAmount     = (totalPool * feeBps) / BASIS_POINTS;
+            uint256 distributable = totalPool - feeAmount;
 
-            if (userWinningStake > 0 && winningPool > 0) {
-                // Calculate fee
-                uint256 feeAmount = (winningPool * feeBps) / BASIS_POINTS;
-                uint256 netWinningPool = winningPool - feeAmount;
-                
-                // Pro-rata payout
-                payout = (userWinningStake * netWinningPool) / winningPool;
-                
-                // Take fee (only once per round)
-                if (feeAmount > 0 && !round.resolved) {
-                    payable(feeSink).transfer(feeAmount);
-                    emit FeeTaken(roundId, feeAmount);
-                }
-            }
+            uint256 userWinningStake = (round.outcome == 1) ? userUpStake : userDownStake;
+            payout = (userWinningStake * distributable) / totalWinningStake;
         }
 
-        // Clear user stakes
+        // Clear user stakes first (CEI)
         upStakes[roundId][msg.sender] = 0;
         downStakes[roundId][msg.sender] = 0;
 
-        // Transfer payout
+        // Transfer payout safely
         if (payout > 0) {
-            payable(msg.sender).transfer(payout);
+            (bool ok, ) = payable(msg.sender).call{value: payout}("");
+            require(ok, "HBAR transfer failed");
             emit Claimed(roundId, msg.sender, payout);
         }
     }
@@ -300,7 +350,8 @@ contract EscrowGame is ReentrancyGuard, Ownable {
         require(address(this).balance >= amount, "Insufficient contract balance");
 
         internalCredits[msg.sender] -= amount;
-        payable(msg.sender).transfer(amount);
+        (bool ok, ) = payable(msg.sender).call{value: amount}("");
+        require(ok, "HBAR transfer failed");
     }
 
     /**
@@ -313,8 +364,7 @@ contract EscrowGame is ReentrancyGuard, Ownable {
         address user,
         uint256 amount,
         uint64 sourceChain
-    ) external {
-        require(msg.sender == ccipReceiver, "Only CCIP receiver");
+    ) external onlyCCIPReceiver {
         
         internalCredits[user] += amount;
         emit CreditAdded(user, amount, sourceChain);
@@ -340,9 +390,11 @@ contract EscrowGame is ReentrancyGuard, Ownable {
     function recoverExcess(address to, uint256 amount) external onlyOwner {
         require(to != address(0), "Invalid address");
         require(amount <= address(this).balance, "Insufficient balance");
-        
-        // TODO: Add logic to ensure we don't touch active round pools
-        payable(to).transfer(amount);
+        if (nextRoundId > 0) {
+            require(rounds[nextRoundId - 1].resolved, "Open rounds exist");
+        }
+        (bool ok, ) = payable(to).call{value: amount}("");
+        require(ok, "recover failed");
     }
 
     // View functions
@@ -362,4 +414,6 @@ contract EscrowGame is ReentrancyGuard, Ownable {
     function getContractBalance() external view returns (uint256) {
         return address(this).balance;
     }
+
+    receive() external payable {}
 }

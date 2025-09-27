@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -39,6 +39,7 @@ contract CCIPReceiver is Ownable {
     // Storage
     address public escrowGame;
     address public trustedRouter;
+    address public trustedSourceSender; // EVM address on source chain to verify origin
     uint64 public trustedSourceChain;
     
     // Message structure for cross-chain communication
@@ -98,45 +99,31 @@ contract CCIPReceiver is Ownable {
         bytes calldata data,
         address sender
     ) external onlyTrustedRouter messageNotProcessed(messageId) {
-        // Validate source chain
+        // Validate trust: router, source chain, and source sender
         require(sourceChain == trustedSourceChain, "Invalid source chain");
-        
+        require(sender == trustedSourceSender, "Invalid source sender");
+
         // Decode message
         CreditMessage memory creditMsg = abi.decode(data, (CreditMessage));
-        
+
         // Validate message
         require(creditMsg.user != address(0), "Invalid user address");
         require(creditMsg.amount > 0, "Invalid amount");
         require(creditMsg.sourceChain == sourceChain, "Source chain mismatch");
         require(creditMsg.messageId == messageId, "Message ID mismatch");
-        
+
         // Mark message as processed
         processedMessages[messageId] = true;
-        
-        // Credit the user via EscrowGame
-        (bool success, ) = escrowGame.call(
-            abi.encodeWithSignature(
-                "addInternalCredits(address,uint256,uint64)",
-                creditMsg.user,
-                creditMsg.amount,
-                sourceChain
-            )
-        );
-        
-        require(success, "Failed to credit user");
-        
+
+        // Credit the user via EscrowGame (typed interface)
+        IEscrowGame(escrowGame).addInternalCredits(creditMsg.user, creditMsg.amount, sourceChain);
+
         // Update statistics
         totalCreditsProcessed++;
         totalAmountCredited += creditMsg.amount;
         userCreditCount[creditMsg.user]++;
-        
-        emit CreditReceived(
-            creditMsg.user,
-            creditMsg.amount,
-            sourceChain,
-            messageId,
-            sender
-        );
+
+        emit CreditReceived(creditMsg.user, creditMsg.amount, sourceChain, messageId, sender);
     }
 
     /**
@@ -165,16 +152,7 @@ contract CCIPReceiver is Ownable {
         );
         
         // Credit the user via EscrowGame
-        (bool success, ) = escrowGame.call(
-            abi.encodeWithSignature(
-                "addInternalCredits(address,uint256,uint64)",
-                user,
-                amount,
-                sourceChain
-            )
-        );
-        
-        require(success, "Failed to credit user");
+        IEscrowGame(escrowGame).addInternalCredits(user, amount, sourceChain);
         
         // Update statistics
         totalCreditsProcessed++;
@@ -212,6 +190,15 @@ contract CCIPReceiver is Ownable {
         trustedSourceChain = _sourceChain;
         
         emit SourceChainUpdated(oldSourceChain, _sourceChain);
+    }
+
+    /**
+     * @dev Update trusted source sender (address on source chain)
+     * @param _sender New trusted source sender
+     */
+    function setTrustedSourceSender(address _sender) external onlyOwner {
+        require(_sender != address(0), "Invalid source sender");
+        trustedSourceSender = _sender;
     }
 
     /**
@@ -288,10 +275,11 @@ contract CCIPReceiver is Ownable {
         if (token == address(0)) {
             // Native token
             require(address(this).balance >= amount, "Insufficient balance");
-            payable(to).transfer(amount);
+            (bool ok, ) = payable(to).call{value: amount}("");
+            require(ok, "Native transfer failed");
         } else {
             // ERC20 token
-            IERC20(token).transfer(to, amount);
+            require(IERC20(token).transfer(to, amount), "ERC20 transfer failed");
         }
     }
 
@@ -302,6 +290,13 @@ contract CCIPReceiver is Ownable {
     function emergencyPauseMessage(bytes32 messageId) external onlyOwner {
         processedMessages[messageId] = true;
     }
+
+    receive() external payable {}
+}
+
+// Interface for EscrowGame (minimal)
+interface IEscrowGame {
+    function addInternalCredits(address user, uint256 amount, uint64 srcChain) external;
 }
 
 // Interface for ERC20 (minimal)
