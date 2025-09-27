@@ -7,7 +7,7 @@
   "scripts": {
     "test": "npx hardhat test",
     "compile": "npx hardhat compile",
-    "deploy": "node scripts/deploy-tatkal60.js",
+    "deploy": "node scripts/deploy.js",
     "test-ccip": "node scripts/test-ccip.js",
     "generate-wallet": "node scripts/generate-wallet.js",
     "node": "npx hardhat node",

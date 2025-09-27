@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+// NOTE: Set the Pyth contract address via setPyth(_pyth) for your target network (Hedera testnet/mainnet).
+// Hedera Pyth address can be found in Pyth docs under EVM contract addresses.
+
 /**
  * @title OracleAdapter
- * @dev Adapter contract for price feeds (Pyth, Chainlink, or mock)
+ * @dev Adapter contract for price feeds (Pyth)
  * @notice Provides standardized price data interface
  */
 
@@ -23,6 +26,20 @@ interface IOracleAdapter {
         returns (int64 price, uint8 decimals);
 }
 
+/**
+ * @dev Minimal IPyth interface & structs (inline to avoid external deps)
+ */
+interface IPyth {
+    struct Price {
+        int64 price;
+        uint64 conf;
+        int32 expo;
+        uint256 publishTime;
+    }
+    function getPriceNoOlderThan(bytes32 id, uint256 age) external view returns (Price memory price);
+    function getPrice(bytes32 id) external view returns (Price memory price);
+}
+
 contract OracleAdapter {
     // Events
     event PriceUpdated(bytes32 indexed market, int64 price, uint8 decimals, uint256 timestamp);
@@ -31,6 +48,12 @@ contract OracleAdapter {
     // Storage
     mapping(bytes32 => PriceData) public prices;
     address public owner;
+
+    // Pyth config
+    address public pyth;                      // Pyth contract address on Hedera
+    mapping(bytes32 => bytes32) public priceIdByMarket; // market => Pyth price feed id
+    uint8 public constant TARGET_DECIMALS = 8;
+    uint256 public constant DEFAULT_MAX_AGE = 1 days;
     
     // Market constants
     bytes32 public constant HBAR_USD = keccak256("HBAR/USD");
@@ -57,6 +80,27 @@ contract OracleAdapter {
         _setPrice(HBAR_USD, 0.05e8, 8); // $0.05 with 8 decimals
         _setPrice(ETH_USD, 2000e8, 8);  // $2000 with 8 decimals
         _setPrice(BTC_USD, 45000e8, 8); // $45000 with 8 decimals
+
+        // Default wiring for BTC/USD (Pyth). Replace if needed via setMarketPriceId().
+        // Common BTC/USD Pyth price feed id:
+        // 0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43
+        priceIdByMarket[BTC_USD] = 0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43;
+    }
+
+    /**
+     * @dev Set Pyth contract address
+     */
+    function setPyth(address _pyth) external onlyOwner {
+        require(_pyth != address(0), "Invalid Pyth address");
+        pyth = _pyth;
+    }
+
+    /**
+     * @dev Map a market to a Pyth price feed id
+     */
+    function setMarketPriceId(bytes32 market, bytes32 priceId) external onlyOwner {
+        require(market != bytes32(0) && priceId != bytes32(0), "Invalid params");
+        priceIdByMarket[market] = priceId;
     }
 
     /**
@@ -66,14 +110,23 @@ contract OracleAdapter {
      * @return decimals Number of decimals
      * @return lastUpdate Last update timestamp
      */
-    function getPrice(bytes32 market) 
-        external 
-        view 
-        returns (int64 price, uint8 decimals, uint256 lastUpdate) 
+    function getPrice(bytes32 market)
+        external
+        view
+        returns (int64 price, uint8 decimals, uint256 lastUpdate)
     {
+        // Prefer Pyth if configured for this market
+        if (pyth != address(0)) {
+            bytes32 id = priceIdByMarket[market];
+            if (id != bytes32(0)) {
+                IPyth.Price memory p = IPyth(pyth).getPriceNoOlderThan(id, DEFAULT_MAX_AGE);
+                int64 scaled = _scaleToTarget(p.price, p.expo, TARGET_DECIMALS);
+                return (scaled, TARGET_DECIMALS, p.publishTime);
+            }
+        }
+        // Fallback to mock/local storage
         PriceData memory data = prices[market];
         require(data.isValid, "Price not available");
-        
         return (data.price, data.decimals, data.lastUpdate);
     }
 
@@ -87,6 +140,14 @@ contract OracleAdapter {
         view
         returns (int64 price, uint8 decimals)
     {
+        if (pyth != address(0)) {
+            bytes32 id = priceIdByMarket[market];
+            if (id != bytes32(0)) {
+                IPyth.Price memory p = IPyth(pyth).getPriceNoOlderThan(id, maxAge);
+                int64 scaled = _scaleToTarget(p.price, p.expo, TARGET_DECIMALS);
+                return (scaled, TARGET_DECIMALS);
+            }
+        }
         PriceData memory data = prices[market];
         require(data.isValid, "Price not available");
         require(block.timestamp - data.lastUpdate <= maxAge, "Stale price");
@@ -249,6 +310,26 @@ contract OracleAdapter {
             out[pad + j] = b[j];
         }
         return string(out);
+    }
+
+    /**
+     * @dev Scale Pyth price/exponent to target decimals (e.g., 8)
+     */
+    function _scaleToTarget(int64 rawPrice, int32 expo, uint8 targetDecimals) internal pure returns (int64) {
+        // scaled = rawPrice * 10^(expo + targetDecimals)
+        int256 p = int256(rawPrice);
+        int256 e = int256(int256(expo) + int256(uint256(targetDecimals)));
+        if (e > 0) {
+            uint256 mul = 10 ** uint256(e);
+            int256 r = p * int256(mul);
+            require(r <= type(int64).max && r >= type(int64).min, "Overflow");
+            return int64(r);
+        } else if (e < 0) {
+            uint256 div = 10 ** uint256(-e);
+            return int64(p / int256(div));
+        } else {
+            return rawPrice;
+        }
     }
 
     /**
