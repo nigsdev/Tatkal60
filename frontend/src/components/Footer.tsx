@@ -32,7 +32,7 @@ export default function Footer() {
           <Card className="p-5">
             <h4 className="text-white font-semibold mb-3">Resources</h4>
             <ul className="space-y-2 text-sm">
-              <li><a className="hover:text-teal-400 text-gray-300" href="https://github.com/..." target="_blank">GitHub <ExternalLink size={14} className="inline ml-1"/></a></li>
+              <li><a className="hover:text-teal-400 text-gray-300" href="https://github.com/nigsdev/Tatkal60" target="_blank">GitHub <ExternalLink size={14} className="inline ml-1"/></a></li>
               <li><a className="hover:text-teal-400 text-gray-300" href="#" target="_blank">Docs (coming soon)</a></li>
               <li><a className="hover:text-teal-400 text-gray-300" href="#" target="_blank">Demo video (coming soon)</a></li>
             </ul>

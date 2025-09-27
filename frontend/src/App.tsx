@@ -1,4 +1,7 @@
 import Layout from './components/Layout';
+import LivePrice from './components/LivePrice';
+import RefreshPyth from './components/RefreshPyth';
+import RoundsList from './components/RoundsList';
 
 export default function App() {
   return (
@@ -13,6 +16,12 @@ export default function App() {
           </p>
         </div>
       </section>
+      
+      <div className="grid gap-6">
+        <LivePrice />
+        <RefreshPyth />
+        <RoundsList />
+      </div>
     </Layout>
   );
 }
