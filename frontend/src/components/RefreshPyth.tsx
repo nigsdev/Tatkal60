@@ -28,8 +28,18 @@ export default function RefreshPyth() {
       if (r.read) setPostedPrice(`On-chain price: ${(Number(r.read.price)/1e8).toFixed(2)} @ ${new Date(r.read.lastTs*1000).toLocaleTimeString()}`);
       else setPostedPrice('Posted update. If price still shows stale, wait a second and click Refresh again.');
     } catch (e: any) {
-      const m = e?.code === -32602 && /tinybar/i.test(e?.message ?? '') ? 'Node rejected msg.value < 1 tinybar. We automatically send ≥ 1 tinybar; try again.' : (e?.message ?? String(e));
-      setErr(m);
+      let errorMessage = e?.message ?? String(e);
+      
+      // Handle specific Pyth contract errors
+      if (errorMessage.includes('0x19abf40e') || errorMessage.includes('Pyth contract is not properly configured')) {
+        errorMessage = 'Pyth contract is not properly configured on Hedera testnet. Please check the Pyth Network documentation for the correct configuration.';
+      } else if (errorMessage.includes('0x025dbdd4')) {
+        errorMessage = 'Pyth update failed. The contract may not be properly deployed or the price ID may be incorrect for Hedera testnet.';
+      } else if (e?.code === -32602 && /tinybar/i.test(e?.message ?? '')) {
+        errorMessage = 'Node rejected msg.value < 1 tinybar. We automatically send ≥ 1 tinybar; try again.';
+      }
+      
+      setErr(errorMessage);
     } finally { setLoading(false); }
   };
 

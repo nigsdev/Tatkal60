@@ -117,6 +117,18 @@ export async function postUpdateAndRead(): Promise<{
     const signer = await getSigner();
     const pyth = new Contract(PYTH_ADDRESS as string, PYTH_ABI, signer);
     
+    // First, check if the Pyth contract is working
+    console.log('Checking Pyth contract status...');
+    try {
+      await pyth.getPrice(BTC_PRICE_ID);
+      console.log('✅ Pyth contract is accessible');
+    } catch (contractError: any) {
+      console.warn('⚠️ Pyth contract check failed:', contractError.message);
+      if (contractError.message.includes('0x19abf40e') || contractError.message.includes('unknown custom error')) {
+        throw new Error('Pyth contract is not properly configured on Hedera testnet. The contract may not be deployed or the price ID may be incorrect. Please check the Pyth Network documentation for the correct Hedera testnet configuration.');
+      }
+    }
+    
     // Fetch update data from Hermes
     console.log('Fetching update data from Hermes...');
     const updateData = await fetchHermesUpdate([BTC_PRICE_ID]);

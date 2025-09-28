@@ -5,7 +5,6 @@ import LivePrice from '../components/LivePrice';
 import RefreshPyth from '../components/RefreshPyth';
 import RoundCard from '../components/RoundCard';
 import { useRoundsWithEvents } from '../hooks/useRoundsWithEvents';
-import EventBusStatus from '../components/EventBusStatus';
 import { useMemo, useEffect, useState } from 'react';
 
 function cleanRounds(rounds: any[]): any[] {
@@ -46,7 +45,7 @@ function formatAgo(now: number, ts?: number) {
 
 export default function Dashboard() {
   const pollMs = 6000; // matches useRounds(6000)
-  const { rounds, loading, error, lastUpdated, refetch, eventBusStatus } = useRoundsWithEvents(pollMs);
+  const { rounds, loading, error, lastUpdated, refetch } = useRoundsWithEvents(pollMs);
 
   const { active, past } = useMemo(() => {
     const cleaned = cleanRounds(rounds);
@@ -94,7 +93,6 @@ export default function Dashboard() {
               Updated {formatAgo(now, lastUpdated)} • Auto{' '}
               {Math.floor(pollMs / 1000)}s
             </div>
-            <EventBusStatus status={eventBusStatus} />
             <Button
               variant="primary"
               onClick={refetch}
