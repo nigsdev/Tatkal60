@@ -91,9 +91,11 @@ export default function RoundCard({
   // Use currentTime for display (updates every second) but nowTs for status calculations
   const lockRemaining = lock > 0 ? lock - currentTime : 0;
   const resolveRemaining = resolve > 0 ? resolve - currentTime : 0;
+  const startRemaining = start > 0 ? start - currentTime : 0;
   
   const lockLabel = lock > 0 ? fmtDur(lockRemaining) : '--';
   const resolveLabel = resolve > 0 ? fmtDur(resolveRemaining) : '--';
+  const startLabel = start > 0 ? fmtDur(startRemaining) : '--';
   
   // Color coding for urgency
   const getTimeColor = (remaining: number) => {
@@ -327,6 +329,12 @@ export default function RoundCard({
         <div className="text-right">
           <div className="text-sm text-gray-400 mb-1">Time Remaining</div>
           <div className="space-y-1 text-sm">
+            {status === 'Upcoming' && startLabel !== '--' && (
+              <div>
+                <span className="text-gray-300">Start:</span>
+                <span className={getTimeClasses(startRemaining)}>{startLabel}</span>
+              </div>
+            )}
             <div>
               <span className="text-gray-300">Lock:</span>
               <span className={lockClasses}>{lockLabel}</span>
@@ -440,7 +448,16 @@ export default function RoundCard({
           {!isBetting && (
             <div className="text-center py-3 px-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
               <div className="text-yellow-400 text-sm font-medium">
-                {status === 'Upcoming' ? 'Betting will start soon' : 
+                {status === 'Upcoming' ? (
+                  <div className="space-y-1">
+                    <div>Betting will start soon</div>
+                    {startLabel !== '--' && (
+                      <div className="text-xs text-yellow-300">
+                        Starts in: <span className="font-mono">{startLabel}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : 
                  status === 'Locked' ? 'Betting period has ended' :
                  status === 'Resolving' ? 'Round is being resolved' :
                  'Betting not available'}
