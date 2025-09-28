@@ -7,6 +7,8 @@ import { escrow, resolvedAddresses } from '../lib/contracts';
 import { sendTx } from '../lib/tx';
 import { useChainTime } from '../hooks/useChainTime';
 import { keccak256, toUtf8Bytes } from 'ethers';
+import { parseContractError, showErrorToast } from '../lib/errorHandler';
+import { ensureCorrectNetwork } from '../lib/networkUtils';
 
 const OWNER = import.meta.env.VITE_OWNER?.toLowerCase?.();
 const BTC = keccak256(toUtf8Bytes('BTC/USD'));
@@ -22,7 +24,7 @@ export default function AdminPanel() {
     // Initialize admin panel
   }, []);
 
-  const verifyLastRound = async (label: string) => {
+  const verifyLastRound = async (_label: string) => {
     // Round creation verification (optional)
     try {
       const rRead: any = await escrow().read();
@@ -38,84 +40,118 @@ export default function AdminPanel() {
   const createNow = async () => {
     if (!isConnected) await connect();
 
-    // Use chain time to avoid time mismatches
-    const nowS = chainTime;
-    const startS = nowS;
-    const resolveS = startS + 60;
-    const lockS = resolveS - 10; // 50s betting
-
-    const c: any = await escrow().write();
-    let fCreate;
     try {
-      fCreate = c.interface.getFunction('createRound');
-    } catch {
-      /* noop */
-    }
-    if (!fCreate || fCreate.inputs?.length !== 4) {
-      console.error(
-        '[AdminPanel] Expected createRound(bytes32,uint64,uint64,uint64) not found in ABI/address',
-        resolvedAddresses()
-      );
-      throw new Error(
-        'EscrowGame ABI mismatch: generic createRound not available. Update contract/address.'
-      );
-    }
-
-    const fn = (c as any)[fCreate.name];
-    await sendTx(
-      'Create 60s Round (now)',
-      () => fn(BTC, BigInt(startS), BigInt(lockS), BigInt(resolveS)),
-      {
-        pending: 'Confirm Create Round',
-        submitted: 'Create Round submitted',
-        success: 'Round created successfully',
-        error: 'Create Round failed',
+      // Ensure correct network before proceeding
+      const networkOk = await ensureCorrectNetwork();
+      if (!networkOk) {
+        const parsedError = parseContractError(
+          { code: 4902, message: 'Wrong network' },
+          { action: 'create_round' }
+        );
+        showErrorToast(parsedError, { action: 'create_round' });
+        return;
       }
-    );
 
-    await verifyLastRound('createNow');
+      // Use chain time to avoid time mismatches
+      const nowS = chainTime;
+      const startS = nowS;
+      const resolveS = startS + 60;
+      const lockS = resolveS - 10; // 50s betting
+
+      const c: any = await escrow().write();
+      let fCreate;
+      try {
+        fCreate = c.interface.getFunction('createRound');
+      } catch {
+        /* noop */
+      }
+      if (!fCreate || fCreate.inputs?.length !== 4) {
+        console.error(
+          '[AdminPanel] Expected createRound(bytes32,uint64,uint64,uint64) not found in ABI/address',
+          resolvedAddresses()
+        );
+        throw new Error(
+          'EscrowGame ABI mismatch: generic createRound not available. Update contract/address.'
+        );
+      }
+
+      const fn = (c as any)[fCreate.name];
+      await sendTx(
+        'Create 60s Round (now)',
+        () => fn(BTC, BigInt(startS), BigInt(lockS), BigInt(resolveS)),
+        {
+          pending: 'Confirm Create Round',
+          submitted: 'Create Round submitted',
+          success: 'Round created successfully',
+          error: 'Create Round failed',
+        }
+      );
+
+      await verifyLastRound('createNow');
+    } catch (error: any) {
+      // Enhanced error handling for round creation
+      const parsedError = parseContractError(error, { action: 'create_round' });
+      showErrorToast(parsedError, { action: 'create_round' });
+    }
   };
 
   const createFuture = async () => {
     if (!isConnected) await connect();
 
-    // Use chain time to avoid time mismatches
-    const nowS = chainTime;
-    const minStart = nowS + 5; // small buffer
-    const startS = Math.max(startAt || 0, minStart);
-    const resolveS = startS + 60;
-    const lockS = resolveS - 10; // 50s betting
-
-    const c: any = await escrow().write();
-    let fCreate;
     try {
-      fCreate = c.interface.getFunction('createRound');
-    } catch {
-      /* noop */
-    }
-    if (!fCreate || fCreate.inputs?.length !== 4) {
-      console.error(
-        '[AdminPanel] Expected createRound(bytes32,uint64,uint64,uint64) not found in ABI/address',
-        resolvedAddresses()
-      );
-      throw new Error(
-        'EscrowGame ABI mismatch: generic createRound not available. Update contract/address.'
-      );
-    }
-
-    const fn = (c as any)[fCreate.name];
-    await sendTx(
-      'Create 60s Round (future)',
-      () => fn(BTC, BigInt(startS), BigInt(lockS), BigInt(resolveS)),
-      {
-        pending: 'Confirm Create Future Round',
-        submitted: 'Create Future Round submitted',
-        success: 'Future round created successfully',
-        error: 'Create Future Round failed',
+      // Ensure correct network before proceeding
+      const networkOk = await ensureCorrectNetwork();
+      if (!networkOk) {
+        const parsedError = parseContractError(
+          { code: 4902, message: 'Wrong network' },
+          { action: 'create_round' }
+        );
+        showErrorToast(parsedError, { action: 'create_round' });
+        return;
       }
-    );
 
-    await verifyLastRound('createFuture');
+      // Use chain time to avoid time mismatches
+      const nowS = chainTime;
+      const minStart = nowS + 5; // small buffer
+      const startS = Math.max(startAt || 0, minStart);
+      const resolveS = startS + 60;
+      const lockS = resolveS - 10; // 50s betting
+
+      const c: any = await escrow().write();
+      let fCreate;
+      try {
+        fCreate = c.interface.getFunction('createRound');
+      } catch {
+        /* noop */
+      }
+      if (!fCreate || fCreate.inputs?.length !== 4) {
+        console.error(
+          '[AdminPanel] Expected createRound(bytes32,uint64,uint64,uint64) not found in ABI/address',
+          resolvedAddresses()
+        );
+        throw new Error(
+          'EscrowGame ABI mismatch: generic createRound not available. Update contract/address.'
+        );
+      }
+
+      const fn = (c as any)[fCreate.name];
+      await sendTx(
+        'Create 60s Round (future)',
+        () => fn(BTC, BigInt(startS), BigInt(lockS), BigInt(resolveS)),
+        {
+          pending: 'Confirm Create Future Round',
+          submitted: 'Create Future Round submitted',
+          success: 'Future round created successfully',
+          error: 'Create Future Round failed',
+        }
+      );
+
+      await verifyLastRound('createFuture');
+    } catch (error: any) {
+      // Enhanced error handling for round creation
+      const parsedError = parseContractError(error, { action: 'create_round' });
+      showErrorToast(parsedError, { action: 'create_round' });
+    }
   };
 
   return (

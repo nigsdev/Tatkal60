@@ -7,6 +7,9 @@ import { hbar } from '../lib/format';
 import { sendTx, parseHBAR } from '../lib/tx';
 import { escrow } from '../lib/contracts';
 import { useChainTime } from '../hooks/useChainTime';
+import { parseContractError, showErrorToast, validateBetAmount } from '../lib/errorHandler';
+import { switchToHederaTestnet, ensureCorrectNetwork } from '../lib/networkUtils';
+import { refreshPythPrice } from '../lib/pythUtils';
 
 export default function RoundCard({
   r,
@@ -112,45 +115,159 @@ export default function RoundCard({
   const isBetting = mode === 'active' && status === 'Betting';
   const isResolving = mode === 'active' && status === 'Resolving';
   const isResolved = status === 'Resolved';
-  const amtOk = !isNaN(Number(amt)) && Number(amt) > 0;
+  
+  // Enhanced bet amount validation
+  const betValidation = validateBetAmount(amt);
+  const amtOk = betValidation.valid;
 
   const addChip = (v: string) => setAmt(v);
 
   const onBet = async (isUp: boolean) => {
     if (!isBetting || !amtOk) return;
-    const c = await escrow().write();
-    const v = parseHBAR(amt);
-    await sendTx(
-      isUp ? 'Bet Up' : 'Bet Down',
-      () =>
-        isUp
-          ? (c as any).betUp(r.id, { value: v })
-          : (c as any).betDown(r.id, { value: v }),
-      {
-        pending: `Confirm ${isUp ? 'Bet Up' : 'Bet Down'}`,
-        submitted: `${isUp ? 'Bet Up' : 'Bet Down'} submitted`,
-        success: `Bet ${isUp ? 'Up' : 'Down'} executed`,
-        error: `Bet ${isUp ? 'Up' : 'Down'} failed`,
-      },
-      onChanged
-    );
+    
+    try {
+      // Ensure correct network before proceeding
+      const networkOk = await ensureCorrectNetwork();
+      if (!networkOk) {
+        const parsedError = parseContractError(
+          { code: 4902, message: 'Wrong network' },
+          { action: 'bet', roundId: r.id, amount: amt }
+        );
+        showErrorToast(parsedError, { action: 'bet', roundId: r.id, amount: amt });
+        return;
+      }
+
+      const c = await escrow().write();
+      const v = parseHBAR(amt);
+      
+      await sendTx(
+        isUp ? 'Bet Up' : 'Bet Down',
+        () =>
+          isUp
+            ? (c as any).betUp(r.id, { value: v })
+            : (c as any).betDown(r.id, { value: v }),
+        {
+          pending: `Confirm ${isUp ? 'Bet Up' : 'Bet Down'}`,
+          submitted: `${isUp ? 'Bet Up' : 'Bet Down'} submitted`,
+          success: `Bet ${isUp ? 'Up' : 'Down'} executed`,
+          error: `Bet ${isUp ? 'Up' : 'Down'} failed`,
+        },
+        onChanged
+      );
+    } catch (error: any) {
+      // Enhanced error handling
+      const parsedError = parseContractError(error, { 
+        action: 'bet', 
+        roundId: r.id, 
+        amount: amt 
+      });
+      
+      // Handle specific error types
+      if (parsedError.type === 'pyth_stale') {
+        // Override the action to refresh Pyth
+        parsedError.action = {
+          type: 'refresh_pyth',
+          label: 'Refresh Pyth',
+          action: async () => {
+            const refreshed = await refreshPythPrice();
+            if (refreshed) {
+              // Retry the bet after refreshing
+              setTimeout(() => onBet(isUp), 2000);
+            }
+          }
+        };
+      } else if (parsedError.type === 'min_bet' || parsedError.type === 'max_bet') {
+        // Override the action to adjust amount
+        parsedError.action = {
+          type: 'adjust_amount',
+          label: parsedError.type === 'min_bet' ? 'Set to 0.001 HBAR' : 'Set to 1000 HBAR',
+          action: () => {
+            setAmt(parsedError.type === 'min_bet' ? '0.001' : '1000');
+          }
+        };
+      } else if (parsedError.type === 'wrong_chain') {
+        // Override the action to switch network
+        parsedError.action = {
+          type: 'switch_network',
+          label: 'Switch Network',
+          action: async () => {
+            const switched = await switchToHederaTestnet();
+            if (switched) {
+              // Retry the bet after switching
+              setTimeout(() => onBet(isUp), 1000);
+            }
+          }
+        };
+      }
+      
+      showErrorToast(parsedError, { action: 'bet', roundId: r.id, amount: amt });
+    }
   };
 
   const onResolve = async () => {
     if (!isResolving) return;
-    const c = await escrow().write();
-    const fn = (c as any).resolveRound ?? (c as any).resolve;
-    await sendTx(
-      'Resolve',
-      () => fn(r.id),
-      {
-        pending: 'Confirm Resolve',
-        submitted: 'Resolve submitted',
-        success: 'Round resolved',
-        error: 'Resolve failed',
-      },
-      onChanged
-    );
+    
+    try {
+      // Ensure correct network before proceeding
+      const networkOk = await ensureCorrectNetwork();
+      if (!networkOk) {
+        const parsedError = parseContractError(
+          { code: 4902, message: 'Wrong network' },
+          { action: 'resolve', roundId: r.id }
+        );
+        showErrorToast(parsedError, { action: 'resolve', roundId: r.id });
+        return;
+      }
+
+      const c = await escrow().write();
+      const fn = (c as any).resolveRound ?? (c as any).resolve;
+      
+      await sendTx(
+        'Resolve',
+        () => fn(r.id),
+        {
+          pending: 'Confirm Resolve',
+          submitted: 'Resolve submitted',
+          success: 'Round resolved',
+          error: 'Resolve failed',
+        },
+        onChanged
+      );
+    } catch (error: any) {
+      // Enhanced error handling for resolve
+      const parsedError = parseContractError(error, { 
+        action: 'resolve', 
+        roundId: r.id 
+      });
+      
+      // Handle Pyth stale error for resolve
+      if (parsedError.type === 'pyth_stale') {
+        parsedError.action = {
+          type: 'refresh_pyth',
+          label: 'Refresh Pyth',
+          action: async () => {
+            const refreshed = await refreshPythPrice();
+            if (refreshed) {
+              // Retry the resolve after refreshing
+              setTimeout(() => onResolve(), 2000);
+            }
+          }
+        };
+      } else if (parsedError.type === 'wrong_chain') {
+        parsedError.action = {
+          type: 'switch_network',
+          label: 'Switch Network',
+          action: async () => {
+            const switched = await switchToHederaTestnet();
+            if (switched) {
+              setTimeout(() => onResolve(), 1000);
+            }
+          }
+        };
+      }
+      
+      showErrorToast(parsedError, { action: 'resolve', roundId: r.id });
+    }
   };
 
   const onClaim = async () => {
@@ -276,13 +393,20 @@ export default function RoundCard({
                 Total: {amt} HBAR
               </div>
             )}
+            {!betValidation.valid && amt && (
+              <div className="text-xs text-red-400 font-medium">
+                {betValidation.error}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3 min-w-0">
             <input
               value={amt}
               onChange={e => setAmt(e.target.value)}
               className={`flex-1 min-w-0 px-4 py-3 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
-                isBetting && amtOk
+                !betValidation.valid && amt
+                  ? 'bg-red-500/10 border border-red-500/50 focus:ring-red-500/50 focus:border-red-500/50'
+                  : isBetting && amtOk
                   ? 'bg-white/10 border border-cyan-500/50 focus:ring-cyan-500/50 focus:border-cyan-500/50'
                   : 'bg-white/5 border border-white/10 focus:ring-cyan-500/50 focus:border-cyan-500/50'
               }`}

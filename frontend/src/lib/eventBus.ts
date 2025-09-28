@@ -57,10 +57,10 @@ class EventBus {
 
   private getWebSocketUrl(): string | null {
     // Check for Hedera WebSocket endpoints
-    const wsUrls = [
-      'wss://testnet.hashio.io/ws', // Hedera testnet WebSocket
-      'wss://mainnet.hashio.io/ws', // Hedera mainnet WebSocket
-    ];
+    // const wsUrls = [
+    //   'wss://testnet.hashio.io/ws', // Hedera testnet WebSocket
+    //   'wss://mainnet.hashio.io/ws', // Hedera mainnet WebSocket
+    // ];
 
     // For now, return null to use polling fallback
     // WebSocket support can be enabled when available
@@ -189,7 +189,7 @@ class EventBus {
       const betPlacedEvents = await this.contract.queryFilter(betPlacedFilter, fromBlock, toBlock);
       
       for (const event of betPlacedEvents) {
-        if (event.args) {
+        if ('args' in event && event.args) {
           this.emitEvent({
             type: 'BetPlaced',
             roundId: Number(event.args[0]),
@@ -209,7 +209,7 @@ class EventBus {
       const roundResolvedEvents = await this.contract.queryFilter(roundResolvedFilter, fromBlock, toBlock);
       
       for (const event of roundResolvedEvents) {
-        if (event.args) {
+        if ('args' in event && event.args) {
           this.emitEvent({
             type: 'RoundResolved',
             roundId: Number(event.args[0]),
@@ -228,7 +228,7 @@ class EventBus {
       const claimedEvents = await this.contract.queryFilter(claimedFilter, fromBlock, toBlock);
       
       for (const event of claimedEvents) {
-        if (event.args) {
+        if ('args' in event && event.args) {
           this.emitEvent({
             type: 'Claimed',
             roundId: Number(event.args[0]),

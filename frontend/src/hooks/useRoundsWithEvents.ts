@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { loadRounds } from '../lib/readModel';
 import { useWalletStore } from '../lib/hedera';
-import { useEventBus, EventBusEvent } from './useEventBus';
+import { useEventBus, type EventBusEvent } from './useEventBus';
 
 export function useRoundsWithEvents(pollMs = 6000) {
   const { address } = useWalletStore();

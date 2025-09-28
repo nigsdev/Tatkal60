@@ -1,4 +1,4 @@
-import { parseEther, ContractTransactionResponse } from 'ethers';
+import { ContractTransactionResponse } from 'ethers';
 import { useWalletStore } from './hedera';
 
 const env = (k: string, d = '') => (import.meta as any)?.env?.[k] ?? d;

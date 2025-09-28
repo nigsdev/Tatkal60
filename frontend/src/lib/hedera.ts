@@ -4,7 +4,6 @@ import {
   BrowserProvider,
   JsonRpcProvider,
   Contract,
-  formatEther,
   type Provider,
   type Eip1193Provider,
 } from 'ethers';

@@ -129,8 +129,8 @@ export default function RoundsList() {
               status: 'Betting',
               lockTs: Math.floor(Date.now()/1000) + 45,
               resolveTs: Math.floor(Date.now()/1000) + 60,
-              poolUp: BigInt('1000000000000000000'), // 1 HBAR
-              poolDown: BigInt('2000000000000000000'), // 2 HBAR
+              upPool: BigInt('1000000000000000000'), // 1 HBAR
+              downPool: BigInt('2000000000000000000'), // 2 HBAR
               userUp: BigInt('500000000000000000'), // 0.5 HBAR
               userDown: BigInt('0'),
               claimable: BigInt('0'),
@@ -148,8 +148,8 @@ export default function RoundsList() {
               status: 'Resolved',
               lockTs: Math.floor(Date.now()/1000) - 30,
               resolveTs: Math.floor(Date.now()/1000) - 10,
-              poolUp: BigInt('5000000000000000000'), // 5 HBAR
-              poolDown: BigInt('3000000000000000000'), // 3 HBAR
+              upPool: BigInt('5000000000000000000'), // 5 HBAR
+              downPool: BigInt('3000000000000000000'), // 3 HBAR
               userUp: BigInt('1000000000000000000'), // 1 HBAR
               userDown: BigInt('0'),
               claimable: BigInt('1500000000000000000'), // 1.5 HBAR
@@ -213,7 +213,7 @@ export default function RoundsList() {
                 <div>
                   <div className="text-gray-400 mb-1">Total Pool</div>
                   <div className="text-white font-medium">
-                    {hbar(round.poolUp + round.poolDown)} HBAR
+                    {hbar(round.upPool + round.downPool)} HBAR
                   </div>
                 </div>
                 <div>
@@ -231,14 +231,14 @@ export default function RoundsList() {
                     <TrendingUp size={14} className="text-green-400" />
                     <span className="text-gray-400">UP Pool</span>
                   </div>
-                  <span className="text-white">{hbar(round.poolUp)} HBAR</span>
+                  <span className="text-white">{hbar(round.upPool)} HBAR</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <TrendingDown size={14} className="text-red-400" />
                     <span className="text-gray-400">DOWN Pool</span>
                   </div>
-                  <span className="text-white">{hbar(round.poolDown)} HBAR</span>
+                  <span className="text-white">{hbar(round.downPool)} HBAR</span>
                 </div>
               </div>
 

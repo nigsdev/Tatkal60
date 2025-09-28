@@ -1,6 +1,9 @@
 // src/hooks/useEventBus.ts
 import { useEffect, useRef } from 'react';
-import { eventBus, EventType, EventBusEvent } from '../lib/eventBus';
+import { eventBus, type EventBusEvent } from '../lib/eventBus';
+
+// Re-export EventBusEvent for use in other hooks
+export type { EventBusEvent };
 
 export interface UseEventBusOptions {
   onBetPlaced?: (event: EventBusEvent) => void;

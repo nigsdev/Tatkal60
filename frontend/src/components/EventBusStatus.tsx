@@ -1,5 +1,5 @@
 // src/components/EventBusStatus.tsx
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Wifi, WifiOff, Clock } from 'lucide-react';
 
 interface EventBusStatusProps {

@@ -60,7 +60,7 @@ export function getStatusBgColor(status: RoundStatus): string {
 
 // Calculate total pool size
 export function getTotalPool(round: RoundVM): bigint {
-  return round.poolUp + round.poolDown;
+  return round.upPool + round.downPool;
 }
 
 // Calculate user's total stake
@@ -128,13 +128,13 @@ export function getPotentialWinnings(round: RoundVM): bigint {
   
   if (round.resultSide === 1 && round.userUp > 0n) {
     // UP won
-    const denom = round.poolUp === 0n ? 1n : round.poolUp;
+    const denom = round.upPool === 0n ? 1n : round.upPool;
     return (distributable * round.userUp) / denom;
   }
   
   if (round.resultSide === 2 && round.userDown > 0n) {
     // DOWN won
-    const denom = round.poolDown === 0n ? 1n : round.poolDown;
+    const denom = round.downPool === 0n ? 1n : round.downPool;
     return (distributable * round.userDown) / denom;
   }
   
